@@ -1,0 +1,14 @@
+{
+  "name": "WTF-808 Rhythm Composer",
+  "short_name": "WTF-808",
+  "description": "808-style groovebox with drums, bass and keys",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#121214",
+  "theme_color": "#1b1b1e",
+  "icons": [
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
