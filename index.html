@@ -62,6 +62,7 @@ button.flat:active{transform:scale(.97)}
 button.flat.danger{color:#f0a09a}
 button.flat.mute{min-width:34px}
 button.flat.mute.on{background:var(--red);border-color:var(--red);color:#1b1b1e}
+button.flat.solo.on{background:var(--yellow);border-color:var(--yellow);color:#1b1b1e}
 
 .drumrow{display:flex;align-items:center;gap:6px;margin-bottom:7px}
 .dlabel{width:32px;flex:none;font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--silk);background:none;border:1px solid transparent;border-radius:5px;cursor:pointer;text-align:center;padding:6px 0;font-family:'Chivo Mono',monospace}
@@ -135,6 +136,9 @@ select{background:var(--panel3);border:1px solid var(--line);color:var(--cream);
   <div class="sechead" data-toggle="sec-drums">
    <span class="lamp on" id="lamp-drums"></span><h2>Drums</h2>
    <button class="flat mute" id="mute-drums" aria-label="ドラムをミュート">M</button>
+   <button class="flat mute solo" id="solo-drums" aria-label="ソロ再生">S</button>
+   <button class="flat" id="dice-drums" aria-label="ドラムをランダム生成">&#127922;</button>
+   <button class="flat" id="undo-drums" style="display:none">戻す</button>
    <button class="flat" id="clear-drums">クリア</button>
    <span class="chev">&#9660;</span>
   </div>
@@ -154,6 +158,9 @@ select{background:var(--panel3);border:1px solid var(--line);color:var(--cream);
   <div class="sechead" data-toggle="sec-bass">
    <span class="lamp on" id="lamp-bass"></span><h2>Bass</h2>
    <button class="flat mute" id="mute-bass" aria-label="ベースをミュート">M</button>
+   <button class="flat mute solo" id="solo-bass" aria-label="ソロ再生">S</button>
+   <button class="flat" id="dice-bass" aria-label="ベースラインをランダム生成">&#127922;</button>
+   <button class="flat" id="undo-bass" style="display:none">戻す</button>
    <button class="flat" id="clear-bass">クリア</button>
    <span class="chev">&#9660;</span>
   </div>
@@ -180,6 +187,9 @@ select{background:var(--panel3);border:1px solid var(--line);color:var(--cream);
   <div class="sechead" data-toggle="sec-keys">
    <span class="lamp on" id="lamp-keys"></span><h2>Keys</h2>
    <button class="flat mute" id="mute-keys" aria-label="キーボードをミュート">M</button>
+   <button class="flat mute solo" id="solo-keys" aria-label="ソロ再生">S</button>
+   <button class="flat" id="dice-keys" aria-label="キーボードをランダム生成">&#127922;</button>
+   <button class="flat" id="undo-keys" style="display:none">戻す</button>
    <button class="flat" id="clear-keys">クリア</button>
    <span class="chev">&#9660;</span>
   </div>
@@ -224,9 +234,10 @@ select{background:var(--panel3);border:1px solid var(--line);color:var(--cream);
    <div class="bank">
     <input type="text" id="patname" placeholder="パターン名" maxlength="24">
     <button class="flat" id="savepat">保存</button>
+    <button class="flat" id="sharepat">URLで共有</button>
    </div>
    <div class="banklist" id="banklist"></div>
-   <p class="note" id="banknote">パターン（全トラック・音色・FX・テンポ込み）はこの端末のブラウザに保存されます。編集中の状態も自動保存され、次に開いたとき続きから再開できます。</p>
+   <p class="note" id="banknote">パターン（全トラック・音色・FX・テンポ込み）はこの端末のブラウザに保存されます。編集中の状態も自動保存され、次に開いたとき続きから再開できます。「URLで共有」で今のパターンをリンクにして送れます。</p>
   </div>
  </div>
 
@@ -262,10 +273,11 @@ function blankState(){
  const d = {}; DRUMS.forEach(k => d[k] = Array(NSTEP).fill(0));
  return {
   v:2, bpm:110, swing:0, mvol:80,
-  drums:{pat:d, voice:defVoice(), vol:85, dly:0, rev:12, mute:false},
+  song:{root:9, prog:[[0,'m'],[8,'M'],[3,'M'],[10,'M']]},
+  drums:{pat:d, voice:defVoice(), vol:85, dly:0, rev:12, mute:false, solo:false},
   bass:{steps:Array(NSTEP).fill(null), slide:Array(NSTEP).fill(0), acc:Array(NSTEP).fill(0),
-        wave:'sawtooth', cut:55, res:45, env:60, dec:40, vol:75, dly:10, rev:8, mute:false},
-  keys:{grid:Array.from({length:NSTEP},()=>[]), sound:'pluck', tone:70, rel:35, vol:60, dly:30, rev:35, mute:false},
+        wave:'sawtooth', cut:55, res:45, env:60, dec:40, vol:75, dly:10, rev:8, mute:false, solo:false},
+  keys:{grid:Array.from({length:NSTEP},()=>[]), sound:'pluck', tone:70, rel:35, vol:60, dly:30, rev:35, mute:false, solo:false},
   fx:{dtime:3, dfb:40, rdec:20, drive:0, cut:100}
  };
 }
@@ -278,13 +290,17 @@ function deepMerge(base, over){
  return out;
 }
 let S = blankState();
-S.drums.pat.BD = [1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0];
+/* 初回デモ: メロウなローファイ調 (Am - F - C - G) */
+S.bpm=85; S.swing=12;
+S.drums.pat.BD = [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0];
 S.drums.pat.SD = [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0];
-S.drums.pat.CH = [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,1];
-S.drums.pat.OH = [0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0];
-S.bass.steps  = [45,null,null,45,null,null,43,null,45,null,null,41,null,null,43,40];
-S.bass.slide[14]=1; S.bass.acc[0]=1; S.bass.acc[8]=1;
-S.keys.grid[0]=[64,69,72]; S.keys.grid[6]=[64,67,72]; S.keys.grid[8]=[62,67,71]; S.keys.grid[14]=[60,64,69];
+S.drums.pat.CH = [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0];
+S.drums.voice.CH.dec=18;
+S.bass.steps  = [45,null,null,null,41,null,null,null,48,null,null,null,43,null,null,null];
+S.bass.wave='triangle'; S.bass.cut=45; S.bass.res=18; S.bass.env=30; S.bass.dec=55; S.bass.vol=70;
+S.keys.grid[0]=[64,69,72]; S.keys.grid[4]=[65,69,72]; S.keys.grid[8]=[64,67,72]; S.keys.grid[12]=[62,67,71];
+S.keys.sound='pad'; S.keys.rel=70; S.keys.tone=55; S.keys.vol=55; S.keys.dly=18; S.keys.rev=45;
+S.fx.rdec=28;
 
 /* ---------- storage (localStorage + fallback) ---------- */
 const mem = {};
@@ -329,8 +345,10 @@ function initAudio(){
 function applyMix(){
  if(!ac) return;
  master.gain.value = (S.mvol/100)*0.9;
+ const anySolo = ['drums','bass','keys'].some(p=>S[p].solo);
  ['drums','bass','keys'].forEach(p=>{
-  buses[p].gain.value = S[p].mute ? 0 : Math.pow(S[p].vol/100,1.4);
+  const audible = anySolo ? S[p].solo : !S[p].mute;
+  buses[p].gain.value = audible ? Math.pow(S[p].vol/100,1.4) : 0;
   sends[p].dly.gain.value = S[p].dly/100;
   sends[p].rev.gain.value = S[p].rev/100;
  });
@@ -470,17 +488,21 @@ function keyVoice(note,t){
 let playing=false, step=0, nextTime=0, timer=null;
 const drawQ=[];
 const stepDur = () => (60/S.bpm)/4;
+function partAudible(p){
+ const anySolo = ['drums','bass','keys'].some(x=>S[x].solo);
+ return anySolo ? S[p].solo : !S[p].mute;
+}
 function schedule(){
  while(nextTime < ac.currentTime+0.12){
   const s=step, sw=(s%2===1)? S.swing/100*stepDur()*0.66 : 0, t=nextTime+sw;
-  if(!S.drums.mute) DRUMS.forEach(k=>{ if(S.drums.pat[k][s]) dvoice[k](t); });
+  if(partAudible('drums')) DRUMS.forEach(k=>{ if(S.drums.pat[k][s]) dvoice[k](t); });
   const bn=S.bass.steps[s];
-  if(!S.bass.mute && bn!=null){
+  if(partAudible('bass') && bn!=null){
    const pv=(s+NSTEP-1)%NSTEP;
    const from=(S.bass.slide[pv]&&S.bass.steps[pv]!=null&&S.bass.steps[pv]!==bn)? S.bass.steps[pv] : null;
    bassVoice(bn,t,!!S.bass.acc[s],from);
   }
-  if(!S.keys.mute) S.keys.grid[s].forEach(n=>keyVoice(n,t));
+  if(partAudible('keys')) S.keys.grid[s].forEach(n=>keyVoice(n,t));
   drawQ.push({s,t:nextTime});
   nextTime += stepDur(); step=(step+1)%NSTEP;
  }
@@ -692,7 +714,8 @@ function refreshUI(){
 function paintMutes(){
  ['drums','bass','keys'].forEach(p=>{
   document.getElementById('mute-'+p).classList.toggle('on', S[p].mute);
-  document.getElementById('lamp-'+p).classList.toggle('on', !S[p].mute);
+  document.getElementById('solo-'+p).classList.toggle('on', S[p].solo);
+  document.getElementById('lamp-'+p).classList.toggle('on', partAudible(p));
  });
 }
 
@@ -709,10 +732,117 @@ playBtn.onclick=()=>{
 };
 ['drums','bass','keys'].forEach(p=>{
  document.getElementById('mute-'+p).onclick=()=>{ S[p].mute=!S[p].mute; paintMutes(); applyMix(); markDirty(); };
+ document.getElementById('solo-'+p).onclick=()=>{ S[p].solo=!S[p].solo; paintMutes(); applyMix(); markDirty(); };
 });
 document.getElementById('clear-drums').onclick=()=>{ DRUMS.forEach(k=>S.drums.pat[k].fill(0)); refreshUI(); markDirty(); };
 document.getElementById('clear-bass').onclick=()=>{ S.bass.steps.fill(null); S.bass.slide.fill(0); S.bass.acc.fill(0); paintBass(); markDirty(); };
 document.getElementById('clear-keys').onclick=()=>{ S.keys.grid=Array.from({length:NSTEP},()=>[]); paintKeys(); markDirty(); };
+
+/* ---------- random generators (shared key & chord progression) ---------- */
+const ROOTS=[9,0,2,4,7,5]; /* A C D E G F */
+const PROGS=[
+ [[0,'m'],[8,'M'],[3,'M'],[10,'M']],
+ [[0,'m'],[10,'M'],[8,'M'],[10,'M']],
+ [[0,'m'],[5,'m'],[8,'M'],[7,'m']],
+ [[0,'m'],[8,'M'],[5,'m'],[7,'m']],
+ [[0,'m'],[5,'m'],[10,'M'],[0,'m']]
+];
+const KEYRHY=[[0,4,8,12],[0,3,8,11],[0,6,8,14],[0,2,6,8,10,14],[0,8]];
+const BASSRHY=[
+ [0,2,4,6,8,10,12,14],
+ [0,3,6,8,11,14],
+ [0,4,7,8,12,15],
+ [0,6,8,14],
+ [0,2,4,6,8,10,12,13,14,15]
+];
+const DRUMTPL=[
+ {name:'Boom bap', BD:{0:1,7:.6,10:.7,3:.25,13:.3}, SD:{4:1,12:1,15:.2}, LT:{14:.15},
+  CH:{0:.9,2:.9,4:.9,6:.9,8:.9,10:.9,12:.9,14:.9,1:.15,9:.15}, OH:{10:.5,2:.3}, CP:{12:.35}, CB:{}},
+ {name:'House', BD:{0:1,4:1,8:1,12:1}, SD:{}, LT:{}, CH:{1:.3,3:.3,5:.3,7:.3}, OH:{2:1,6:1,10:1,14:1}, CP:{4:1,12:1}, CB:{6:.2}},
+ {name:'Electro', BD:{0:1,6:.7,8:1,14:.4}, SD:{4:1,12:1}, LT:{13:.3},
+  CH:{0:.8,2:.5,4:.8,6:.5,8:.8,10:.5,12:.8,14:.5}, OH:{}, CP:{}, CB:{0:.3,5:.4,10:.4}},
+ {name:'Breakbeat', BD:{0:1,10:.8}, SD:{4:1,7:.4,12:1,14:.3}, LT:{3:.2,11:.2},
+  CH:{2:.7,6:.7,10:.7,14:.7,15:.3}, OH:{8:.4}, CP:{}, CB:{}}
+];
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+function chordNotes(rootPC,off,q){
+ const pcs=[(rootPC+off)%12,(rootPC+off+(q==='m'?3:4))%12,(rootPC+off+7)%12];
+ return pcs.map(p=>{
+  let best=null;
+  for(let oct=4;oct<=6;oct++){
+   const n=oct*12+p;
+   if(n>=KEYS_LO&&n<=KEYS_HI&&(best===null||Math.abs(n-66)<Math.abs(best-66))) best=n;
+  }
+  return best;
+ }).filter(n=>n!=null);
+}
+function genKeys(){
+ S.song={root:pick(ROOTS), prog:pick(PROGS)};
+ S.keys.grid=Array.from({length:NSTEP},()=>[]);
+ const rhy=pick(KEYRHY);
+ rhy.forEach(pos=>{
+  const ch=S.song.prog[Math.floor(pos/4)];
+  let notes=chordNotes(S.song.root,ch[0],ch[1]);
+  if(notes.length===3&&Math.random()<0.25) notes=notes.slice(0,2);
+  S.keys.grid[pos]=notes.slice();
+ });
+}
+function genBass(){
+ S.bass.steps=Array(NSTEP).fill(null);
+ S.bass.slide=Array(NSTEP).fill(0);
+ S.bass.acc=Array(NSTEP).fill(0);
+ const rhy=pick(BASSRHY);
+ rhy.forEach(pos=>{
+  const bar=Math.floor(pos/4), ch=S.song.prog[bar];
+  const rootPC=(S.song.root+ch[0])%12;
+  const root=36+rootPC;
+  let note=root;
+  const r=Math.random();
+  if(r<0.13){ note=root+7<=BASS_HI? root+7 : root-5; }
+  else if(r<0.25){ note=root+12<=BASS_HI? root+12 : root; }
+  else if(r<0.38){ note=36+((rootPC+pick([3,5,7,10]))%12); }
+  if(pos%4===3&&Math.random()<0.35){
+   const nch=S.song.prog[(bar+1)%4];
+   const nroot=36+((S.song.root+nch[0])%12);
+   note=Math.random()<0.5? Math.max(BASS_LO,nroot-1) : (nroot-5>=BASS_LO? nroot-5 : nroot+7);
+  }
+  S.bass.steps[pos]=Math.min(BASS_HI,Math.max(BASS_LO,note));
+ });
+ const cands=[];
+ for(let i=0;i<NSTEP-1;i++) if(S.bass.steps[i]!=null&&S.bass.steps[i+1]!=null&&S.bass.steps[i]!==S.bass.steps[i+1]) cands.push(i);
+ cands.sort(()=>Math.random()-0.5).slice(0,1+Math.floor(Math.random()*3)).forEach(i=>S.bass.slide[i]=1);
+ [0,8].forEach(i=>{ if(S.bass.steps[i]!=null&&Math.random()<0.7) S.bass.acc[i]=1; });
+ const hits=S.bass.steps.map((n,i)=>n!=null?i:null).filter(i=>i!=null);
+ if(hits.length&&Math.random()<0.5) S.bass.acc[pick(hits)]=1;
+}
+function genDrums(){
+ const tpl=pick(DRUMTPL);
+ DRUMS.forEach(k=>{
+  S.drums.pat[k]=Array(NSTEP).fill(0);
+  const map=tpl[k]||{};
+  for(const pos in map) if(Math.random()<map[pos]) S.drums.pat[k][+pos]=1;
+ });
+ return tpl.name;
+}
+const undoBuf={drums:null,bass:null,keys:null};
+function snap(section){
+ undoBuf[section]=JSON.stringify({part:S[section], song:S.song});
+ document.getElementById('undo-'+section).style.display='';
+}
+document.getElementById('dice-drums').onclick=()=>{ snap('drums'); const g=genDrums(); refreshUI(); markDirty(); toast('ドラム生成: '+g); };
+document.getElementById('dice-bass').onclick=()=>{ snap('bass'); genBass(); refreshUI(); markDirty(); toast('ベースラインを生成しました'); };
+document.getElementById('dice-keys').onclick=()=>{ snap('keys'); genKeys(); refreshUI(); markDirty(); toast('コード進行ごと引き直しました。ベースの🎲も押すと合います'); };
+['drums','bass','keys'].forEach(sec=>{
+ document.getElementById('undo-'+sec).onclick=()=>{
+  if(!undoBuf[sec]) return;
+  const o=JSON.parse(undoBuf[sec]);
+  S[sec]=o.part; S.song=o.song;
+  undoBuf[sec]=null;
+  document.getElementById('undo-'+sec).style.display='none';
+  refreshUI(); markDirty(); toast('元に戻しました');
+ };
+});
 document.querySelectorAll('.sechead').forEach(h=>{
  h.addEventListener('click',e=>{
   if(e.target.closest('button')) return;
@@ -759,22 +889,68 @@ document.getElementById('savepat').onclick=()=>{
 };
 if(!lsOK) document.getElementById('banknote').textContent='この環境では永続保存が使えないため、保存はこの画面を開いている間のみ有効です（公開ページ上では永続保存が有効になります）。';
 
+/* ---------- URL share ---------- */
+async function encodeState(){
+ let bytes=new TextEncoder().encode(JSON.stringify(S));
+ let flag='0';
+ if(typeof CompressionStream!=='undefined'){
+  try{
+   const cs=new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+   bytes=new Uint8Array(await new Response(cs).arrayBuffer());
+   flag='1';
+  }catch(e){}
+ }
+ let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
+ return flag+btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function decodeState(s){
+ const flag=s[0]; s=s.slice(1).replace(/-/g,'+').replace(/_/g,'/');
+ const bin=atob(s);
+ let bytes=new Uint8Array(bin.length);
+ for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+ if(flag==='1'){
+  const ds=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  bytes=new Uint8Array(await new Response(ds).arrayBuffer());
+ }
+ return JSON.parse(new TextDecoder().decode(bytes));
+}
+document.getElementById('sharepat').onclick=async()=>{
+ try{
+  const url=location.origin+location.pathname+'#p='+await encodeState();
+  if(navigator.share){ await navigator.share({title:'WTF-808 pattern', url}); }
+  else if(navigator.clipboard){ await navigator.clipboard.writeText(url); toast('URLをコピーしました'); }
+  else toast('この環境では共有できません');
+ }catch(e){ /* share cancelled */ }
+};
+
 /* ---------- service worker ---------- */
 if('serviceWorker' in navigator){
  try{ navigator.serviceWorker.register('./sw.js').catch(()=>{}); }catch(e){}
 }
 
 /* ---------- boot ---------- */
-const saved=lsGet('wtf808:autosave');
-if(saved){ try{ S=deepMerge(blankState(), JSON.parse(saved)); }catch(e){} }
-buildDrums();
-buildRoll('bassroll', BASS_LO, BASS_HI, bassCells, 'bass');
-buildRoll('keysroll', KEYS_LO, KEYS_HI, keysCells, 'keys');
-bindAll();
-renderVoicePanel();
-paintBass(); paintKeys(); paintMutes();
-refreshBank();
-if(saved) toast('前回の続きから再開しました');
+(async()=>{
+ let fromShare=false;
+ const m=location.hash.match(/p=([^&]+)/);
+ if(m){
+  try{ S=deepMerge(blankState(), await decodeState(m[1])); fromShare=true;
+   history.replaceState(null,'',location.pathname);
+  }catch(e){}
+ }
+ if(!fromShare){
+  const saved=lsGet('wtf808:autosave');
+  if(saved){ try{ S=deepMerge(blankState(), JSON.parse(saved)); }catch(e){} }
+ }
+ buildDrums();
+ buildRoll('bassroll', BASS_LO, BASS_HI, bassCells, 'bass');
+ buildRoll('keysroll', KEYS_LO, KEYS_HI, keysCells, 'keys');
+ bindAll();
+ renderVoicePanel();
+ paintBass(); paintKeys(); paintMutes();
+ refreshBank();
+ if(fromShare){ markDirty(); toast('共有されたパターンを読み込みました'); }
+ else if(lsGet('wtf808:autosave')) toast('前回の続きから再開しました');
+})();
 </script>
 </body>
 </html>
